@@ -1,0 +1,70 @@
+- hosts: web
+  become: yes
+  vars:
+    app_dir: /opt/app
+    venv_dir: /opt/app/venv
+    flask_port: 5000
+
+  tasks:
+    - name: Update apt cache
+      apt:
+        update_cache: yes
+
+    - name: Install required packages
+      apt:
+        name:
+          - python3-venv
+          - python3-pip
+          - nginx
+        state: present
+
+    - name: Create app directory
+      file:
+        path: '{{ app_dir }}'
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+
+    - name: Copy application files
+      copy:
+        src: ../app/
+        dest: '{{ app_dir }}/'
+        owner: ubuntu
+        group: ubuntu
+        mode: '0755'
+
+    - name: Create virtual environment
+      command: python3 -m venv '{{ venv_dir }}'
+      args:
+        creates: '{{ venv_dir }}/bin/activate'
+      become_user: ubuntu
+
+    - name: Install Python dependencies
+      pip:
+        requirements: '{{ app_dir }}/requirements.txt'
+        virtualenv: '{{ venv_dir }}'
+        virtualenv_python: python3
+      become_user: ubuntu
+
+    - name: Create systemd service
+      copy:
+        dest: /etc/systemd/system/app.service
+        content: |
+          [Unit]
+          Description=Flask Application
+          After=network.target
+          [Service]
+          User=ubuntu
+          Group=ubuntu
+          WorkingDirectory={{ app_dir }}
+          ExecStart={{ venv_dir }}/bin/python app.py
+          Restart=always
+          [Install]
+          WantedBy=multi-user.target
+
+    - name: Enable and start Flask service
+      systemd:
+        name: app
+        state: started
+        enabled: yes
