@@ -47,12 +47,14 @@ jobs:
           terraform_version: latest
 
       # 5. Terraform Init
-      - name: Terraform Init
-        working-directory: terraform
-        run: terraform init \
-            -backend-config="bucket=devops-tfstate-bucket-manikanta" \
-            -backend-config="key=ec2-project/terraform.tfstate" \
-            -backend-config="region=ap-southeast-1"
+    - name: Terraform Init
+      working-directory: terraform
+      run: |
+        terraform init \
+          -backend-config="bucket=devops-tfstate-bucket-manikanta" \
+          -backend-config="key=ec2-project/terraform.tfstate" \
+          -backend-config="region=ap-southeast-1"
+
 
       # 6. Terraform Plan & Apply
       - name: Terraform Apply
