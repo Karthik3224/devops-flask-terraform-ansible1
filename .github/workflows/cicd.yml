@@ -9,31 +9,32 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
 
+    env:
+      BUCKET: devops-tfstate-bucket-manikanta
+      REGION: ap-southeast-1
+
     steps:
       #############################
-      # 1. Checkout Repo
+      # 1. Checkout repository
       #############################
       - name: Checkout Repo
         uses: actions/checkout@v4
 
       #############################
-      # 2. Configure AWS Credentials
+      # 2. Configure AWS credentials
       #############################
       - name: Configure AWS Credentials
         uses: aws-actions/configure-aws-credentials@v4
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ap-southeast-1
+          aws-region: ${{ env.REGION }}
 
       #############################
       # 3. Create S3 bucket if not exists
       #############################
       - name: Create S3 bucket for Terraform state
         run: |
-          BUCKET="devops-tfstate-bucket-manikanta"
-          REGION="ap-southeast-1"
-
           if aws s3api head-bucket --bucket "$BUCKET" 2>/dev/null; then
             echo "Bucket exists, skipping."
           else
@@ -58,28 +59,24 @@ jobs:
       #############################
       - name: Terraform Init
         working-directory: terraform
-        run: |
-          terraform init \
-            -backend-config="bucket=devops-tfstate-bucket-manikanta" \
-            -backend-config="key=ec2-project/terraform.tfstate" \
-            -backend-config="region=ap-southeast-1"
+        run: terraform init -backend-config="bucket=$BUCKET" -backend-config="key=ec2-project/terraform.tfstate" -backend-config="region=$REGION"
 
       #############################
       # 6. Terraform Plan
       #############################
       - name: Terraform Plan
         working-directory: terraform
-        run: terraform plan -out=tfplan -refresh=true
+        run: terraform plan
 
       #############################
       # 7. Terraform Apply
       #############################
       - name: Terraform Apply
         working-directory: terraform
-        run: terraform apply -auto-approve tfplan
+        run: terraform apply -auto-approve
 
       #############################
-      # 8. Capture Public IP output
+      # 8. Capture Public IP
       #############################
       - name: Get Public IP
         working-directory: terraform
@@ -109,13 +106,8 @@ jobs:
       - name: Run Ansible Playbook
         working-directory: ansible
         run: |
-          echo "Using PUBLIC_IP=$PUBLIC_IP"
-
-          # Create inventory file
           echo "[web]" > inventory.ini
           echo "$PUBLIC_IP ansible_user=ubuntu ansible_ssh_private_key_file=$(pwd)/keys/id_rsa" >> inventory.ini
-
           echo "---- INVENTORY CONTENT -----"
           cat inventory.ini
-
           ansible-playbook -i inventory.ini playbook.yml --ssh-extra-args="-o StrictHostKeyChecking=no"
